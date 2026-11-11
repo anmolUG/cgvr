@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 10: 3D Viewing Pipeline Visualizer</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        header {
+            background: #161b22;
+            padding: 12px 24px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #58a6ff;
+        }
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            position: relative;
+            background: #101217;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .sidebar {
+            width: 380px;
+            background: #161b22;
+            border-left: 1px solid #30363d;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+        .section-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8b949e;
+            font-weight: bold;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 4px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #f0f6fc;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: #58a6ff;
+        }
+        .btn-row {
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            flex: 1;
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #c9d1d9;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #30363d;
+            color: #fff;
+            border-color: #8b949e;
+        }
+        button.active {
+            background: #1f6feb;
+            color: white;
+            border-color: #58a6ff;
+        }
+        .matrix-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 10px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            color: #79c0ff;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        .legend {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Lab 10: 3D Viewing Pipeline (Perspective vs Orthographic)</h1>
+        <div style="font-size: 13px; color: #8b949e;">PyOpenGL / Pure Math Pipeline</div>
+    </header>
+
+    <div class="main-container">
+        <div class="canvas-area">
+            <canvas id="viewCanvas"></canvas>
+        </div>
+
+        <div class="sidebar">
+            <div>
+                <div class="section-title">Controls</div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Yaw (Rotation Y)</span>
+                        <span id="val-yaw">25°</span>
+                    </div>
+                    <input type="range" id="slider-yaw" min="-180" max="180" value="25">
+                </div>
+
+                <div class="control-group" style="margin-top:10px;">
+                    <div class="control-label">
+                        <span>Pitch (Rotation X)</span>
+                        <span id="val-pitch">20°</span>
+                    </div>
+                    <input type="range" id="slider-pitch" min="-90" max="90" value="20">
+                </div>
+
+                <div class="control-group" style="margin-top:10px;">
+                    <div class="control-label">
+                        <span>Camera Distance (+/-)</span>
+                        <span id="val-dist">8.0</span>
+                    </div>
+                    <input type="range" id="slider-dist" min="2.0" max="25.0" step="0.5" value="8.0">
+                </div>
+
+                <div class="control-group" style="margin-top:10px;">
+                    <div class="control-label">
+                        <span>Field of View ([ / ])</span>
+                        <span id="val-fov">60°</span>
+                    </div>
+                    <input type="range" id="slider-fov" min="15" max="120" step="5" value="60">
+                </div>
+
+                <div class="control-group" style="margin-top:10px;">
+                    <div class="control-label">
+                        <span>Near Plane (n / m)</span>
+                        <span id="val-near">1.0</span>
+                    </div>
+                    <input type="range" id="slider-near" min="0.1" max="10.0" step="0.5" value="1.0">
+                </div>
+
+                <div class="btn-row" style="margin-top: 14px;">
+                    <button id="btn-spin">Auto Spin [Space]</button>
+                    <button id="btn-reset">Reset [R]</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">Traced Vertex: Cube (1, 1, 1)</div>
+                <div class="matrix-box" id="trace-box">Calculating...</div>
+            </div>
+
+            <div>
+                <div class="section-title">Key Elements</div>
+                <div class="legend">
+                    <div class="legend-item"><div class="dot" style="background:#f2d94e;"></div> Cube</div>
+                    <div class="legend-item"><div class="dot" style="background:#66d9ef;"></div> Pyramid</div>
+                    <div class="legend-item"><div class="dot" style="background:#ff5555;"></div> X</div>
+                    <div class="legend-item"><div class="dot" style="background:#50fa7b;"></div> Y</div>
+                    <div class="legend-item"><div class="dot" style="background:#8be9fd;"></div> Z</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('viewCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // State
+        const cam = {
+            yaw: 25.0,
+            pitch: 20.0,
+            dist: 8.0,
+            fov: 60.0,
+            near: 1.0,
+            far: 30.0,
+            spin: false
+        };
+
+        // Geometry
+        const CUBE_V = [
+            [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1],
+            [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]
+        ];
+        const CUBE_E = [
+            [0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4],
+            [0, 4], [1, 5], [2, 6], [3, 7]
+        ];
+
+        const PYR_V = [
+            [-0.8, 0, -0.8], [0.8, 0, -0.8], [0.8, 0, 0.8], [-0.8, 0, 0.8],
+            [0, 1.6, 0]
+        ];
+        const PYR_E = [
+            [0, 1], [1, 2], [2, 3], [3, 0], [0, 4], [1, 4], [2, 4], [3, 4]
+        ];
+
+        const AXES = [
+            [[0, 0, 0], [2.5, 0, 0], '#ff5555'],
+            [[0, 0, 0], [0, 2.5, 0], '#50fa7b'],
+            [[0, 0, 0], [0, 0, 2.5], '#8be9fd']
+        ];
+
+        // Math Helpers (Exact match to viewing_pipeline.py)
+        function sub3(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+        function dot3(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+        function cross3(a, b) {
+            return [
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
+            ];
+        }
+        function norm3(a) {
+            const n = Math.sqrt(dot3(a, a));
+            return [a[0] / n, a[1] / n, a[2] / n];
+        }
+        function identity() {
+            return [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+        }
+        function mat_mul(a, b) {
+            const res = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    let sum = 0;
+                    for (let k = 0; k < 4; k++) sum += a[i][k] * b[k][j];
+                    res[i][j] = sum;
+                }
+            }
+            return res;
+        }
+        function mat_vec(m, v) {
+            const res = [0, 0, 0, 0];
+            for (let i = 0; i < 4; i++) {
+                let sum = 0;
+                for (let k = 0; k < 4; k++) sum += m[i][k] * v[k];
+                res[i] = sum;
+            }
+            return res;
+        }
+        function translate(tx, ty, tz) {
+            const m = identity();
+            m[0][3] = tx; m[1][3] = ty; m[2][3] = tz;
+            return m;
+        }
+        function rotate_x(deg) {
+            const r = deg * Math.PI / 180;
+            const c = Math.cos(r), s = Math.sin(r);
+            return [[1, 0, 0, 0], [0, c, -s, 0], [0, s, c, 0], [0, 0, 0, 1]];
+        }
+        function rotate_y(deg) {
+            const r = deg * Math.PI / 180;
+            const c = Math.cos(r), s = Math.sin(r);
+            return [[c, 0, s, 0], [0, 1, 0, 0], [-s, 0, c, 0], [0, 0, 0, 1]];
+        }
+
+        // Pipeline Matrices
+        function look_at(eye, target, up) {
+            const f = norm3(sub3(target, eye));
+            const s = norm3(cross3(f, up));
+            const u = cross3(s, f);
+            return [
+                [s[0], s[1], s[2], -dot3(s, eye)],
+                [u[0], u[1], u[2], -dot3(u, eye)],
+                [-f[0], -f[1], -f[2], dot3(f, eye)],
+                [0, 0, 0, 1]
+            ];
+        }
+
+        function perspective(fov_deg, aspect, near, far) {
+            const f = 1.0 / Math.tan((fov_deg * Math.PI / 180) / 2.0);
+            return [
+                [f / aspect, 0, 0, 0],
+                [0, f, 0, 0],
+                [0, 0, (far + near) / (near - far), 2 * far * near / (near - far)],
+                [0, 0, -1, 0]
+            ];
+        }
+
+        function orthographic(l, r, b, t, near, far) {
+            return [
+                [2 / (r - l), 0, 0, -(r + l) / (r - l)],
+                [0, 2 / (t - b), 0, -(t + b) / (t - b)],
+                [0, 0, -2 / (far - near), -(far + near) / (far - near)],
+                [0, 0, 0, 1]
+            ];
+        }
+
+        function clip_line_near(c0, c1) {
+            const d0 = c0[2] + c0[3];
+            const d1 = c1[2] + c1[3];
+            if (d0 < 0 && d1 < 0) return null;
+            if (d0 >= 0 && d1 >= 0) return [c0, c1];
+            const t = d0 / (d0 - d1);
+            const hit = [
+                c0[0] + t * (c1[0] - c0[0]),
+                c0[1] + t * (c1[1] - c0[1]),
+                c0[2] + t * (c1[2] - c0[2]),
+                c0[3] + t * (c1[3] - c0[3])
+            ];
+            return d0 < 0 ? [hit, c1] : [c0, hit];
+        }
+
+        function perspective_divide(c) {
+            return [c[0] / c[3], c[1] / c[3], c[2] / c[3]];
+        }
+
+        function viewport_map(ndc, vx, vy, vw, vh) {
+            const xw = vx + (ndc[0] + 1.0) * 0.5 * vw;
+            const yw = vy + (1.0 - (ndc[1] + 1.0) * 0.5) * vh; // Invert Y for 2D Canvas rendering
+            const zw = (ndc[2] + 1.0) * 0.5;
+            return [xw, yw, zw];
+        }
+
+        function trace_vertex(v, model, view, proj, vp) {
+            const world = mat_vec(model, [v[0], v[1], v[2], 1.0]);
+            const eye_c = mat_vec(view, world);
+            const clip = mat_vec(proj, eye_c);
+            const ndc = perspective_divide(clip);
+            const win = viewport_map(ndc, ...vp);
+            return { world, eye: eye_c, clip, ndc, window: win };
+        }
+
+        function view_matrix() {
+            return look_at([0, 0, cam.dist], [0, 0, 0], [0, 1, 0]);
+        }
+
+        function model_matrix(offset) {
+            return mat_mul(translate(...offset),
+                mat_mul(rotate_y(cam.yaw), rotate_x(cam.pitch)));
+        }
+
+        function draw_edges(verts, edges, model, view, proj, vp, color) {
+            const clip_v = verts.map(v => mat_vec(proj, mat_vec(view, mat_vec(model, [...v, 1.0]))));
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+
+            for (const [a, b] of edges) {
+                const seg = clip_line_near(clip_v[a], clip_v[b]);
+                if (!seg) continue;
+                const p0 = viewport_map(perspective_divide(seg[0]), ...vp);
+                const p1 = viewport_map(perspective_divide(seg[1]), ...vp);
+                ctx.beginPath();
+                ctx.moveTo(p0[0], p0[1]);
+                ctx.lineTo(p1[0], p1[1]);
+                ctx.stroke();
+            }
+        }
+
+        function draw_axes(view, proj, vp) {
+            ctx.lineWidth = 2.0;
+            for (const [p0, p1, col] of AXES) {
+                const pt0 = mat_vec(proj, mat_vec(view, [...p0, 1.0]));
+                const pt1 = mat_vec(proj, mat_vec(view, [...p1, 1.0]));
+                const seg = clip_line_near(pt0, pt1);
+                if (!seg) continue;
+                const c0 = viewport_map(perspective_divide(seg[0]), ...vp);
+                const c1 = viewport_map(perspective_divide(seg[1]), ...vp);
+                ctx.strokeStyle = col;
+                ctx.beginPath();
+                ctx.moveTo(c0[0], c0[1]);
+                ctx.lineTo(c1[0], c1[1]);
+                ctx.stroke();
+            }
+        }
+
+        function draw_panel(vp, proj, title) {
+            const [vx, vy, vw, vh] = vp;
+
+            // Clip / Scissor
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(vx, vy, vw, vh);
+            ctx.clip();
+
+            // Background
+            ctx.fillStyle = '#101217';
+            ctx.fillRect(vx, vy, vw, vh);
+
+            const view = view_matrix();
+            draw_axes(view, proj, vp);
+            draw_edges(CUBE_V, CUBE_E, model_matrix([-1.6, 0, 0]), view, proj, vp, '#f2d94e');
+            draw_edges(PYR_V, PYR_E, model_matrix([2.2, -0.8, 0]), view, proj, vp, '#66d9ef');
+
+            ctx.restore();
+
+            // Border
+            ctx.strokeStyle = '#484f58';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(vx + 1, vy + 1, vw - 2, vh - 2);
+
+            // Title
+            ctx.fillStyle = '#e6edf3';
+            ctx.font = '12px Segoe UI, sans-serif';
+            ctx.fillText(title, vx + 12, vy + 22);
+        }
+
+        function render() {
+            const w = canvas.width = canvas.parentElement.clientWidth;
+            const h = canvas.height = canvas.parentElement.clientHeight;
+
+            const half = Math.floor(w / 2);
+            const leftVp = [0, 0, half, h];
+            const rightVp = [half, 0, w - half, h];
+
+            const aspect = leftVp[2] / leftVp[3];
+            const persp = perspective(cam.fov, aspect, cam.near, cam.far);
+            const half_h = cam.dist * Math.tan((cam.fov * Math.PI / 180) / 2.0);
+            const half_w = half_h * aspect;
+            const ortho = orthographic(-half_w, half_w, -half_h, half_h, cam.near, cam.far);
+
+            draw_panel(leftVp, persp, `PERSPECTIVE  fov=${cam.fov.toFixed(0)}°  near=${cam.near.toFixed(1)}  dist=${cam.dist.toFixed(1)}`);
+            draw_panel(rightVp, ortho, `ORTHOGRAPHIC  (same camera)`);
+
+            // Trace vertex (1, 1, 1)
+            const r = trace_vertex([1, 1, 1], model_matrix([-1.6, 0, 0]), view_matrix(), persp, leftVp);
+            const fmt = (t) => '(' + t.map(v => v.toFixed(3).padStart(7, ' ')).join(', ') + ')';
+            document.getElementById('trace-box').textContent =
+                `World:  ${fmt(r.world)}\n` +
+                `Eye:    ${fmt(r.eye)}\n` +
+                `Clip:   ${fmt(r.clip)}\n` +
+                `NDC:    ${fmt(r.ndc)}\n` +
+                `Window: ${fmt(r.window)}`;
+        }
+
+        // Event listeners
+        const sYaw = document.getElementById('slider-yaw');
+        const sPitch = document.getElementById('slider-pitch');
+        const sDist = document.getElementById('slider-dist');
+        const sFov = document.getElementById('slider-fov');
+        const sNear = document.getElementById('slider-near');
+
+        sYaw.oninput = (e) => { cam.yaw = parseFloat(e.target.value); document.getElementById('val-yaw').textContent = `${cam.yaw}°`; render(); };
+        sPitch.oninput = (e) => { cam.pitch = parseFloat(e.target.value); document.getElementById('val-pitch').textContent = `${cam.pitch}°`; render(); };
+        sDist.oninput = (e) => { cam.dist = parseFloat(e.target.value); document.getElementById('val-dist').textContent = cam.dist.toFixed(1); render(); };
+        sFov.oninput = (e) => { cam.fov = parseFloat(e.target.value); document.getElementById('val-fov').textContent = `${cam.fov}°`; render(); };
+        sNear.oninput = (e) => { cam.near = parseFloat(e.target.value); document.getElementById('val-near').textContent = cam.near.toFixed(1); render(); };
+
+        const btnSpin = document.getElementById('btn-spin');
+        btnSpin.onclick = () => {
+            cam.spin = !cam.spin;
+            btnSpin.classList.toggle('active', cam.spin);
+        };
+
+        document.getElementById('btn-reset').onclick = () => {
+            cam.yaw = 25.0; cam.pitch = 20.0; cam.dist = 8.0; cam.fov = 60.0; cam.near = 1.0; cam.spin = false;
+            sYaw.value = 25; sPitch.value = 20; sDist.value = 8.0; sFov.value = 60; sNear.value = 1.0;
+            document.getElementById('val-yaw').textContent = '25°';
+            document.getElementById('val-pitch').textContent = '20°';
+            document.getElementById('val-dist').textContent = '8.0';
+            document.getElementById('val-fov').textContent = '60°';
+            document.getElementById('val-near').textContent = '1.0';
+            btnSpin.classList.remove('active');
+            render();
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') { cam.yaw -= 5; sYaw.value = cam.yaw; document.getElementById('val-yaw').textContent = `${cam.yaw}°`; }
+            else if (e.key === 'ArrowRight') { cam.yaw += 5; sYaw.value = cam.yaw; document.getElementById('val-yaw').textContent = `${cam.yaw}°`; }
+            else if (e.key === 'ArrowUp') { cam.pitch += 5; sPitch.value = cam.pitch; document.getElementById('val-pitch').textContent = `${cam.pitch}°`; }
+            else if (e.key === 'ArrowDown') { cam.pitch -= 5; sPitch.value = cam.pitch; document.getElementById('val-pitch').textContent = `${cam.pitch}°`; }
+            else if (e.key === ' ') { cam.spin = !cam.spin; btnSpin.classList.toggle('active', cam.spin); }
+            else if (e.key === 'r') { document.getElementById('btn-reset').click(); }
+            render();
+        });
+
+        function loop() {
+            if (cam.spin) {
+                cam.yaw = (cam.yaw + 0.6) % 360;
+                sYaw.value = cam.yaw;
+                document.getElementById('val-yaw').textContent = `${cam.yaw.toFixed(0)}°`;
+                render();
+            }
+            requestAnimationFrame(loop);
+        }
+
+        window.onresize = render;
+        render();
+        loop();
+    </script>
+</body>
+</html>

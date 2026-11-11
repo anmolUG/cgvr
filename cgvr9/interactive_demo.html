@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab 9: Collect the Cubes - Interactive 3D Simulation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #11141a;
+            color: #f0f4f8;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        /* Unity TextMeshPro overlay styling */
+        .hud {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #score-text {
+            top: 24px;
+            left: 28px;
+            font-size: 36px;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 10px rgba(74, 144, 226, 0.5);
+            letter-spacing: 1px;
+        }
+        #win-text {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 54px;
+            font-weight: 900;
+            color: #ffd700;
+            text-align: center;
+            text-shadow: 3px 3px 8px rgba(0, 0, 0, 0.9), 0 0 25px rgba(255, 215, 0, 0.7);
+            display: none;
+            line-height: 1.3;
+            background: rgba(10, 15, 25, 0.85);
+            padding: 30px 50px;
+            border-radius: 16px;
+            border: 2px solid #ffd700;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+        }
+        .win-subtitle {
+            font-size: 24px;
+            color: #8be9fd;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+        /* Top Navigation & Info Panel */
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 380px;
+        }
+        .card {
+            background: rgba(22, 27, 34, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        .card h3 {
+            font-size: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #58a6ff;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .status-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: #238636;
+            color: white;
+            font-weight: 600;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            row-gap: 8px;
+            column-gap: 14px;
+            font-size: 13px;
+        }
+        .key-badge {
+            display: inline-block;
+            background: #30363d;
+            border: 1px solid #484f58;
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-weight: 700;
+            color: #f0883e;
+            text-align: center;
+            min-width: 24px;
+        }
+        .key-desc {
+            color: #c9d1d9;
+            align-self: center;
+        }
+        .indicator-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            font-size: 12px;
+        }
+        .indicator {
+            flex: 1;
+            padding: 6px 8px;
+            background: #161b22;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #30363d;
+        }
+        .indicator.active {
+            border-color: #58a6ff;
+            background: rgba(88, 166, 255, 0.15);
+            color: #58a6ff;
+            font-weight: bold;
+        }
+        .indicator.lamp-on {
+            border-color: #ffd700;
+            background: rgba(255, 215, 0, 0.15);
+            color: #ffd700;
+            font-weight: bold;
+        }
+        /* Mobile Touch Controls */
+        #touch-controls {
+            position: absolute;
+            bottom: 24px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            z-index: 20;
+            pointer-events: none;
+        }
+        .dpad, .action-buttons {
+            pointer-events: auto;
+            display: flex;
+            gap: 10px;
+        }
+        .dpad-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(3, 50px);
+            gap: 5px;
+        }
+        .touch-btn {
+            background: rgba(48, 54, 61, 0.7);
+            backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        .touch-btn:active {
+            background: rgba(88, 166, 255, 0.6);
+            transform: scale(0.95);
+        }
+        .touch-action-btn {
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (min-width: 900px) {
+            #touch-controls {
+                display: none;
+            }
+        }
+    </style>
+    <!-- Three.js from Cloudflare CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- HUD elements -->
+    <div class="hud" id="score-text">Score: 0 / 8</div>
+    <div class="hud" id="win-text">
+        <div>🎉 You Win!</div>
+        <div class="win-subtitle">All 8 Cubes Collected! Press [R] to restart</div>
+    </div>
+
+    <!-- Info & Controls Card -->
+    <div id="ui-overlay">
+        <div class="card">
+            <h3>
+                <span>Lab 9: Collect the Cubes</span>
+                <span class="status-badge" id="state-badge">PLAYING</span>
+            </h3>
+            <div class="controls-grid">
+                <div><span class="key-badge">W</span> <span class="key-badge">A</span> <span class="key-badge">S</span> <span class="key-badge">D</span></div>
+                <div class="key-desc">Camera-Relative Move (Physics)</div>
+
+                <div><span class="key-badge">Space</span></div>
+                <div class="key-desc">Jump (Impulse = 6 m/s, Ground Checked)</div>
+
+                <div><span class="key-badge">L</span></div>
+                <div class="key-desc">Toggle Lamp (Point Light at (0,4,0))</div>
+
+                <div><span class="key-badge">R</span></div>
+                <div class="key-desc">Reload Scene</div>
+            </div>
+
+            <div class="indicator-row">
+                <div class="indicator" id="ind-ground">GROUNDED</div>
+                <div class="indicator lamp-on" id="ind-lamp">LAMP: ON</div>
+                <div class="indicator" id="ind-fall">Y: 0.50m</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="touch-controls">
+        <div class="dpad">
+            <div class="dpad-grid">
+                <div></div>
+                <button class="touch-btn" id="btn-up">▲</button>
+                <div></div>
+                <button class="touch-btn" id="btn-left">◀</button>
+                <div></div>
+                <button class="touch-btn" id="btn-right">▶</button>
+                <div></div>
+                <button class="touch-btn" id="btn-down">▼</button>
+                <div></div>
+            </div>
+        </div>
+        <div class="action-buttons" style="align-items: flex-end;">
+            <button class="touch-btn touch-action-btn" id="btn-lamp" style="border-color:#ffd700;">💡 Lamp</button>
+            <button class="touch-btn touch-action-btn" id="btn-jump" style="background:rgba(88,166,255,0.7);">🦘 Jump</button>
+            <button class="touch-btn touch-action-btn" id="btn-restart" style="border-color:#f85149;">🔄 R</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Scene, Camera, Renderer Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x7ec0ee); // Unity default sky blue
+        scene.fog = new THREE.FogExp2(0x7ec0ee, 0.012);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.3, 1000);
+        camera.position.set(0, 6, -8);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // --- 2. Lighting ---
+        // Directional Light (Sun) Rotation (50, -30, 0), Intensity 1
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        sunLight.position.set(20, 30, -15);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 100;
+        const d = 25;
+        sunLight.shadow.camera.left = -d;
+        sunLight.shadow.camera.right = d;
+        sunLight.shadow.camera.top = d;
+        sunLight.shadow.camera.bottom = -d;
+        scene.add(sunLight);
+
+        // Ambient Light (experiment 7 Phong ambient counterpart)
+        const ambientLight = new THREE.AmbientLight(0x404050, 0.6);
+        scene.add(ambientLight);
+
+        // Lamp (Point light at (0, 4, 0), Range 20, Intensity 2)
+        const lampLight = new THREE.PointLight(0xfffaed, 2.0, 20);
+        lampLight.position.set(0, 4, 0);
+        lampLight.castShadow = true;
+        scene.add(lampLight);
+
+        // Visual lamp post / bulb
+        const lampMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.25, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xfffaaa })
+        );
+        lampMesh.position.set(0, 4, 0);
+        scene.add(lampMesh);
+
+        // Lamp stand post
+        const poleGeo = new THREE.CylinderGeometry(0.06, 0.06, 4, 12);
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.3 });
+        const pole = new THREE.Mesh(poleGeo, poleMat);
+        pole.position.set(0, 2, 0);
+        scene.add(pole);
+
+        // --- 3. Ground (Plane: 30 x 30m, Grey-Green Material) ---
+        // Unity plane is 10x10 with scale (3,1,3) => 30x30m
+        const groundGeo = new THREE.PlaneGeometry(30, 30, 30, 30);
+        // Create subtle grid texture
+        const canvasGrid = document.createElement('canvas');
+        canvasGrid.width = 256;
+        canvasGrid.height = 256;
+        const ctx = canvasGrid.getContext('2d');
+        ctx.fillStyle = '#4a6b47'; // Green-grey floor
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = '#3d5c3a';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(0, 0, 256, 256);
+        const gridTexture = new THREE.CanvasTexture(canvasGrid);
+        gridTexture.wrapS = THREE.RepeatWrapping;
+        gridTexture.wrapT = THREE.RepeatWrapping;
+        gridTexture.repeat.set(15, 15);
+
+        const groundMat = new THREE.MeshStandardMaterial({
+            map: gridTexture,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.set(0, 0, 0);
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // --- 4. Player Sphere (Radius 0.5, Blue Material, Tag: Player) ---
+        const sphereRadius = 0.5;
+        const sphereGeo = new THREE.SphereGeometry(sphereRadius, 32, 32);
+        const sphereMat = new THREE.MeshStandardMaterial({
+            color: 0x1e88e5,
+            metalness: 0.3,
+            roughness: 0.4
+        });
+        const player = new THREE.Mesh(sphereGeo, sphereMat);
+        player.castShadow = true;
+        player.receiveShadow = true;
+        scene.add(player);
+
+        // Player physics variables matching PlayerController.cs
+        const startPosition = new THREE.Vector3(0, 0.5, 0);
+        player.position.copy(startPosition);
+
+        let velocity = new THREE.Vector3(0, 0, 0);
+        let isGrounded = true;
+        const moveForce = 15.0;     // Force applied
+        const jumpImpulse = 6.0;    // Jump impulse 6 m/s
+        const fallLimit = -10.0;    // Respawn threshold
+        const gravity = -9.81;
+        const damping = 0.96;       // Rolling friction simulation
+
+        // --- 5. Eight Collectibles (Radius 8, Height 0.8, Angle = i * 45 deg) ---
+        const collectibles = [];
+        const collectiblesFolder = new THREE.Group();
+        scene.add(collectiblesFolder);
+
+        const cubeGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+        const cubeMat = new THREE.MeshStandardMaterial({
+            color: 0xffd700, // Gold / yellow
+            emissive: 0x443300,
+            metalness: 0.6,
+            roughness: 0.2
+        });
+
+        for (let i = 0; i < 8; i++) {
+            const angle = (i * Math.PI * 2) / 8;
+            const x = Math.cos(angle) * 8.0;
+            const z = Math.sin(angle) * 8.0;
+            const y = 0.8;
+
+            const cube = new THREE.Mesh(cubeGeo, cubeMat.clone());
+            cube.position.set(x, y, z);
+            cube.castShadow = true;
+            cube.receiveShadow = true;
+
+            cube.userData = {
+                id: i,
+                basePos: new THREE.Vector3(x, y, z),
+                collected: false,
+                spinSpeed: 90 * (Math.PI / 180), // 90 deg/s in radians
+                bobHeight: 0.25,
+                bobSpeed: 2.0
+            };
+
+            collectiblesFolder.add(cube);
+            collectibles.push(cube);
+        }
+
+        // --- 6. Game State & UI (GameManager.cs) ---
+        let score = 0;
+        const total = 8;
+        const scoreTextEl = document.getElementById('score-text');
+        const winTextEl = document.getElementById('win-text');
+        const indGround = document.getElementById('ind-ground');
+        const indLamp = document.getElementById('ind-lamp');
+        const indFall = document.getElementById('ind-fall');
+        const stateBadge = document.getElementById('state-badge');
+
+        function updateScoreUI() {
+            scoreTextEl.textContent = `Score: ${score} / ${total}`;
+            if (score >= total) {
+                winTextEl.style.display = 'block';
+                stateBadge.textContent = 'YOU WIN';
+                stateBadge.style.background = '#ffd700';
+                stateBadge.style.color = '#000';
+            }
+        }
+
+        function restartScene() {
+            score = 0;
+            winTextEl.style.display = 'none';
+            stateBadge.textContent = 'PLAYING';
+            stateBadge.style.background = '#238636';
+            stateBadge.style.color = '#fff';
+
+            // Reset collectibles
+            collectibles.forEach(c => {
+                c.userData.collected = false;
+                c.visible = true;
+                c.position.copy(c.userData.basePos);
+            });
+
+            // Reset player
+            respawnPlayer();
+            updateScoreUI();
+        }
+
+        function respawnPlayer() {
+            player.position.copy(startPosition);
+            velocity.set(0, 0, 0);
+            isGrounded = true;
+        }
+
+        function toggleLamp() {
+            lampLight.enabled = !lampLight.enabled;
+            lampMesh.material.color.setHex(lampLight.enabled ? 0xfffaaa : 0x333333);
+            if (lampLight.enabled) {
+                indLamp.className = 'indicator lamp-on';
+                indLamp.textContent = 'LAMP: ON';
+            } else {
+                indLamp.className = 'indicator';
+                indLamp.textContent = 'LAMP: OFF';
+            }
+        }
+
+        // --- 7. Input Handling (Input.GetAxis / GetKeyDown) ---
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            keys[key] = true;
+
+            if (e.code === 'Space') {
+                if (isGrounded) {
+                    velocity.y = jumpImpulse;
+                    isGrounded = false;
+                }
+            }
+            if (key === 'l') {
+                toggleLamp();
+            }
+            if (key === 'r') {
+                restartScene();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        // Touch button handlers
+        const touchState = { up: false, down: false, left: false, right: false };
+        function bindTouch(id, prop) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('touchstart', (e) => { e.preventDefault(); touchState[prop] = true; });
+            el.addEventListener('touchend', (e) => { e.preventDefault(); touchState[prop] = false; });
+            el.addEventListener('mousedown', (e) => { touchState[prop] = true; });
+            el.addEventListener('mouseup', (e) => { touchState[prop] = false; });
+        }
+        bindTouch('btn-up', 'up');
+        bindTouch('btn-down', 'down');
+        bindTouch('btn-left', 'left');
+        bindTouch('btn-right', 'right');
+
+        document.getElementById('btn-jump').addEventListener('click', () => {
+            if (isGrounded) {
+                velocity.y = jumpImpulse;
+                isGrounded = false;
+            }
+        });
+        document.getElementById('btn-lamp').addEventListener('click', toggleLamp);
+        document.getElementById('btn-restart').addEventListener('click', restartScene);
+
+        // --- 8. CameraFollow.cs (SmoothDamp) ---
+        // Offset: (0, 6, -8), SmoothTime: 0.15s
+        const camOffset = new THREE.Vector3(0, 6, -8);
+        const camVelocity = new THREE.Vector3(0, 0, 0);
+        const smoothTime = 0.15;
+
+        // Custom SmoothDamp implementation identical to Unity Vector3.SmoothDamp
+        function smoothDamp(current, target, currentVelocity, smoothTimeVal, deltaTime) {
+            smoothTimeVal = Math.max(0.0001, smoothTimeVal);
+            const omega = 2.0 / smoothTimeVal;
+            const x = omega * deltaTime;
+            const exp = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x);
+            
+            const changeX = current.x - target.x;
+            const changeY = current.y - target.y;
+            const changeZ = current.z - target.z;
+
+            const tempX = (currentVelocity.x + omega * changeX) * deltaTime;
+            const tempY = (currentVelocity.y + omega * changeY) * deltaTime;
+            const tempZ = (currentVelocity.z + omega * changeZ) * deltaTime;
+
+            currentVelocity.x = (currentVelocity.x - omega * tempX) * exp;
+            currentVelocity.y = (currentVelocity.y - omega * tempY) * exp;
+            currentVelocity.z = (currentVelocity.z - omega * tempZ) * exp;
+
+            let outputX = target.x + (changeX + tempX) * exp;
+            let outputY = target.y + (changeY + tempY) * exp;
+            let outputZ = target.z + (changeZ + tempZ) * exp;
+
+            return new THREE.Vector3(outputX, outputY, outputZ);
+        }
+
+        // --- 9. Game Loop (FixedUpdate + Update + LateUpdate) ---
+        let clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const time = clock.getElapsedTime();
+
+            // ---- A. Input & Movement (PlayerController.FixedUpdate / Update) ----
+            let h = 0;
+            let v = 0;
+            if (keys['a'] || keys['arrowleft'] || touchState.left) h -= 1;
+            if (keys['d'] || keys['arrowright'] || touchState.right) h += 1;
+            if (keys['w'] || keys['arrowup'] || touchState.up) v += 1;
+            if (keys['s'] || keys['arrowdown'] || touchState.down) v -= 1;
+
+            // Camera-relative forward and right vectors projected onto plane
+            const camForward = new THREE.Vector3();
+            camera.getWorldDirection(camForward);
+            camForward.y = 0;
+            camForward.normalize();
+
+            const camRight = new THREE.Vector3();
+            camRight.crossVectors(camForward, new THREE.Vector3(0, 1, 0)).negate().normalize();
+
+            const moveDir = new THREE.Vector3()
+                .addScaledVector(camForward, v)
+                .addScaledVector(camRight, h);
+
+            if (moveDir.lengthSq() > 0.001) {
+                moveDir.normalize();
+                velocity.x += moveDir.x * moveForce * dt;
+                velocity.z += moveDir.z * moveForce * dt;
+            }
+
+            // Apply friction / damping to planar speed
+            velocity.x *= Math.pow(damping, dt * 60);
+            velocity.z *= Math.pow(damping, dt * 60);
+
+            // Apply gravity
+            velocity.y += gravity * dt;
+
+            // Update player position
+            player.position.x += velocity.x * dt;
+            player.position.y += velocity.y * dt;
+            player.position.z += velocity.z * dt;
+
+            // Ground collision detection (30x30 plane: bounds from -15 to +15)
+            const onPlaneBounds = (Math.abs(player.position.x) <= 15 && Math.abs(player.position.z) <= 15);
+            
+            if (onPlaneBounds && player.position.y <= sphereRadius) {
+                player.position.y = sphereRadius;
+                if (velocity.y < 0) velocity.y = 0;
+                isGrounded = true;
+            } else {
+                isGrounded = false;
+            }
+
+            // Ball rotation for visual rolling effect
+            const rollSpeed = new THREE.Vector2(velocity.x, velocity.z).length();
+            if (rollSpeed > 0.05 && isGrounded) {
+                const rotAxis = new THREE.Vector3(-velocity.z, 0, velocity.x).normalize();
+                player.rotateOnWorldAxis(rotAxis, (rollSpeed * dt) / sphereRadius);
+            }
+
+            // Fall check & Respawn
+            if (player.position.y < fallLimit) {
+                respawnPlayer();
+            }
+
+            // Update UI indicators
+            indGround.className = isGrounded ? 'indicator active' : 'indicator';
+            indGround.textContent = isGrounded ? 'GROUNDED' : 'AIRBORNE';
+            indFall.textContent = `Y: ${player.position.y.toFixed(2)}m`;
+
+            // ---- B. Collectibles Update (Collectible.cs) ----
+            collectibles.forEach(cube => {
+                if (!cube.userData.collected) {
+                    // Spin (90 deg/s * dt)
+                    cube.rotation.y += cube.userData.spinSpeed * dt;
+
+                    // Bob (Mathf.Sin(Time.time * bobSpeed) * bobHeight)
+                    const offset = Math.sin(time * cube.userData.bobSpeed) * cube.userData.bobHeight;
+                    cube.position.y = cube.userData.basePos.y + offset;
+
+                    // Trigger detection (OnTriggerEnter) with Player sphere
+                    // Distance check between cube and player sphere center
+                    const dist = cube.position.distanceTo(player.position);
+                    if (dist < (sphereRadius + 0.4)) { // Trigger contact threshold
+                        cube.userData.collected = true;
+                        cube.visible = false;
+                        score++;
+                        updateScoreUI();
+                    }
+                }
+            });
+
+            // ---- C. Camera Follow (CameraFollow.LateUpdate) ----
+            const desiredCamPos = new THREE.Vector3().copy(player.position).add(camOffset);
+            const newCamPos = smoothDamp(camera.position, desiredCamPos, camVelocity, smoothTime, dt);
+            camera.position.copy(newCamPos);
+
+            // Look at player center + 0.5m offset
+            const lookTarget = new THREE.Vector3().copy(player.position).add(new THREE.Vector3(0, 0.5, 0));
+            camera.lookAt(lookTarget);
+
+            // ---- D. Render ----
+            renderer.render(scene, camera);
+        }
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize HUD
+        updateScoreUI();
+        animate();
+    </script>
+</body>
+</html>
